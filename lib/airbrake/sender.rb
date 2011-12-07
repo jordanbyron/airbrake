@@ -91,17 +91,11 @@ module Airbrake
       http.read_timeout = http_read_timeout
       http.open_timeout = http_open_timeout
 
+      # Handle Security
+      http.use_ssl = secure
       if secure
-        http.use_ssl     = true
-        if File.exist?(OpenSSL::X509::DEFAULT_CERT_FILE)
-          http.ca_file     = OpenSSL::X509::DEFAULT_CERT_FILE
-        else
-          # ca-bundle.crt built from source, see resources/README.md
-          http.ca_file     = Sender.local_cert_path
-        end
+        http.ca_file     = Airbrake::Security.ca_bundle_path
         http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-      else
-        http.use_ssl     = false
       end
 
       http

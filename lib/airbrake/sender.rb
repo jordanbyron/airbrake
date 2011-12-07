@@ -1,3 +1,5 @@
+require 'airbrake/security'
+
 module Airbrake
   # Sends out the notice to Airbrake
   class Sender
@@ -25,6 +27,20 @@ module Airbrake
     def send_to_airbrake(data)
       http = setup_http_connection
 
+      http =
+        Net::HTTP::Proxy(proxy_host, proxy_port, proxy_user, proxy_pass).
+        new(url.host, url.port)
+
+      http.read_timeout = http_read_timeout
+      http.open_timeout = http_open_timeout
+
+      # Handle Security
+      http.use_ssl = secure
+      if secure
+        http.ca_file = Airbrake::Security.ca_bundle_path
+        http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+      end
+
       response = begin
                    http.post(url.path, data, HEADERS)
                  rescue *HTTP_ERRORS => e
@@ -48,13 +64,6 @@ module Airbrake
       nil
     end
 
-
-    # Local certificate path.
-    #
-    def self.local_cert_path
-      File.expand_path(File.join("..", "..", "..", "resources", "ca-bundle.crt"), __FILE__)
-    end
-
     private
 
     attr_reader :proxy_host, :proxy_port, :proxy_user, :proxy_pass, :protocol,
@@ -73,7 +82,7 @@ module Airbrake
     def logger
       Airbrake.logger
     end
-    
+
     def setup_http_connection
       http =
         Net::HTTP::Proxy(proxy_host, proxy_port, proxy_user, proxy_pass).
@@ -85,7 +94,7 @@ module Airbrake
       if secure
         http.use_ssl     = true
         if File.exist?(OpenSSL::X509::DEFAULT_CERT_FILE)
-          http.ca_file     = OpenSSL::X509::DEFAULT_CERT_FILE 
+          http.ca_file     = OpenSSL::X509::DEFAULT_CERT_FILE
         else
           # ca-bundle.crt built from source, see resources/README.md
           http.ca_file     = Sender.local_cert_path
@@ -94,7 +103,7 @@ module Airbrake
       else
         http.use_ssl     = false
       end
-      
+
       http
     rescue => e
       log :error, "[Airbrake::Sender#setup_http_connection] Failure initializing the HTTP connection.\nError: #{e.class} - #{e.message}\nBacktrace:\n#{e.backtrace.join("\n\t")}"
